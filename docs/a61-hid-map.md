@@ -2,10 +2,10 @@
 
 Phase 1 deliverable. This is the artefact that gets transplanted into C++.
 
-**Unit under test:** serial `A618D9K3K9E67AE49B9AEBFKE`, unit ID `0xA49A`,
-firmware build timestamp `0x61D93E97` = 2022-01-05.
-USB `17cc:1750` (the hidraw node number is not stable across replugs — match on
-VID/PID).
+**Unit under test:** A61, firmware build dated 2022-01-05, USB `17cc:1750`.
+(Per-unit serial and unit ID are redacted throughout — their *report layouts*
+are documented below, which is the reusable part. The hidraw node number is not
+stable across replugs; match on VID/PID.)
 
 **Provenance.** Everything here is derived from (a) the device's own HID report
 descriptor and feature reports, and (b) our own captures on this unit. No code
@@ -818,9 +818,13 @@ request/response probe. It is not the way to draw on the screen.
 | Report | Content |
 |---|---|
 | `0xd0` | `01 00 | 30 17 | 03 ff…` — u16 `0x0001`, u16 `0x1730` |
-| `0xd8` | u16 `0x0100`, u16 `0x1730`, u16 `0xA49A` (= `HID_UNIQ`), u32 `0x61D93E97` (Unix time, 2022-01-05) |
-| `0xd9` | ASCII serial `A618D9K3K9E67AE49B9AEBFKE` |
+| `0xd8` | u16 `0x0100`, u16 `0x1730`, u16 unit ID (matches `HID_UNIQ`), u32 firmware build time (Unix seconds) |
+| `0xd9` | 25-char ASCII serial, `A61`-prefixed, zero-padded to 32 B |
 | `0xf8` | display config, above |
+
+Per-unit values (serial, unit ID) are redacted; the layouts above are what
+transfers. `0xd9` being an `A61`-prefixed ASCII serial suggests the prefix is
+the model, so A25/A49 likely differ there.
 
 `0x1730` appears in both `0xd0` and `0xd8`, and the byte pair `30 17` also
 appears in upstream's published sysex lead-in

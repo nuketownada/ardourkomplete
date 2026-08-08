@@ -1,5 +1,30 @@
 # Komplete Kontrol A61 → Ardour on Linux/NixOS
 
+> ## ⚠️ SUPERSEDED — historical record only
+>
+> **This was the plan *before* Phase 1, and several of its central conclusions
+> turned out to be wrong. Read [`docs/a61-hid-map.md`](docs/a61-hid-map.md)
+> instead** — that is the verified map and the thing to build from.
+>
+> Kept because two of its wrong turns are instructive. Specifically, do **not**
+> act on:
+>
+> - **The shadow-port / `AsyncMIDIPort` filter mechanism**, described at length
+>   below as how the CC-capture requirement is met. It is **unnecessary**. In
+>   interactive mode the knobs leave the MIDI port entirely and arrive over HID
+>   as endless encoders, so the device's MIDI port is already just a plain music
+>   port. Dropping it removed the only realtime lock-free component from the
+>   design.
+> - **"Treat OLED labelling as unreliable; don't sink time into it."** The
+>   display is **solved** — 128 × 32, report `0xe0`, fully documented. The
+>   upstream corruption that prompted that warning was most likely wrong
+>   geometry plus inverted polarity, not a flaky panel.
+> - **Soft-takeover / pickup for the knobs.** Endless relative encoders have no
+>   value discontinuity to reconcile, so the problem cannot arise.
+>
+> The phase structure and the licence-provenance discipline (no GPL-3 sources,
+> so the eventual GPL-2 contribution stays clean) both held up and still apply.
+
 Handoff document for Claude Code.
 
 **Target architecture:** an in-tree Ardour control surface module that reads the
