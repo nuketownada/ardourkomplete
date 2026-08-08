@@ -35,18 +35,30 @@ The Ardour checkout is a **sibling** of this repo, not a subdirectory:
 ~/projects/ardourkomplete    this repo
 ```
 
-`flake.nix` here provides the dev shell; `ardour/dev` is a one-line wrapper that
-activates it. Nothing else is added to the Ardour tree, so a PR cannot pick up
-stray tooling — `dev` itself is in `.git/info/exclude`.
+`flake.nix` here provides the dev shell and `dev` activates it. Install it into
+the Ardour checkout as a **symlink**, so there is one copy that cannot drift,
+and exclude it locally so it can never reach an upstream PR:
 
 ```sh
+git clone git@github.com:Ardour/ardour.git ~/projects/ardour   # full clone required
 cd ~/projects/ardour
-./dev ./waf configure --cxx17 --no-phone-home --ptformat
-./dev ./waf -j$(nproc)
-./dev ./gtk2_ardour/ardev          # run from the build tree
+ln -s ../ardourkomplete/dev dev
+echo dev >> .git/info/exclude
 ```
 
-`./dev` with no arguments drops into an interactive shell.
+Then:
+
+```sh
+./dev ./waf configure --cxx17 --no-phone-home --ptformat
+./dev ./waf -j$(nproc)
+cd gtk2_ardour && ../dev ./ardev   # ardev sets LD_LIBRARY_PATH for the build tree
+```
+
+`./dev` with no arguments drops into an interactive shell. `git status` in the
+Ardour checkout stays empty — nothing but that one excluded symlink is added.
+
+A **full** clone is required: Ardour derives its version from `git describe`,
+and a shallow clone breaks the build.
 
 ### Why the flake is not in the Ardour tree
 

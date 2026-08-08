@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Run a command inside the Ardour build shell defined by the flake next to this
+# script. Invoke it from your Ardour checkout:
+#
+#   ./dev                              interactive shell
+#   ./dev ./waf configure --cxx17 ...  run one command
+#   ./dev ./waf -j$(nproc)
+#
+# Install into an Ardour checkout as a symlink, so there is one copy and it
+# cannot drift:
+#
+#   ln -s ../ardourkomplete/dev ardour/dev
+#   echo dev >> ardour/.git/info/exclude    # keep it out of upstream PRs
+#
+# Two deliberate choices:
+#
+#  * The flake lives in this repo, not in the Ardour tree. A devShell does not
+#    have to live in the tree it builds -- it only has to be active in the
+#    shell. Keeping it out means nothing extra can ever land in a PR upstream.
+#
+#  * `path:` rather than a bare flake ref. Nix's git+file fetcher only sees
+#    *tracked* files, so a flake that is untracked (or a checkout that is not a
+#    git repo at all) fails with "To make it visible to Nix, run: git add
+#    flake.nix". `path:` reads the working tree as it is and sidesteps that
+#    whole class of problem.
+#
+# readlink -f resolves through the symlink, so `flake` is always this repo
+# while the working directory stays wherever you invoked it -- your checkout.
+set -euo pipefail
+
+flake="$(dirname "$(readlink -f "$0")")"
+
+if [ ! -f "$flake/flake.nix" ]; then
+  echo "dev: no flake.nix beside $0 (resolved to $flake)" >&2
+  exit 1
+fi
+
+if [ ! -f ./wscript ] || [ ! -d ./gtk2_ardour ]; then
+  echo "dev: run this from an Ardour checkout (no ./wscript here)" >&2
+  echo "dev: cwd is $PWD" >&2
+  exit 1
+fi
+
+if [ $# -eq 0 ]; then
+  exec nix develop --no-write-lock-file "path:$flake"
+else
+  exec nix develop --no-write-lock-file "path:$flake" -c "$@"
+fi
