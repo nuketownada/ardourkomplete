@@ -19,7 +19,7 @@ Usage:
 """
 import os, select, struct, sys, time
 
-DEV = "/dev/hidraw12"
+from a61dev import find_device
 
 
 def decode(p):
@@ -80,8 +80,8 @@ def main():
     dur = float(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1][0].isdigit() else 60.0
     raw = "--raw" in sys.argv
 
-    fd = os.open(DEV, os.O_RDWR | os.O_NONBLOCK)
-    print(f"# listening on {DEV} for {dur:.0f}s -- go", flush=True)
+    fd = os.open(find_device(), os.O_RDWR | os.O_NONBLOCK)
+    print(f"# listening on {find_device()} for {dur:.0f}s -- go", flush=True)
     t0 = time.time()
     prev = None
     count = 0

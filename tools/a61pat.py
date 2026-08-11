@@ -28,7 +28,7 @@ import os
 import sys
 import time
 
-DEV = "/dev/hidraw12"
+from a61dev import find_device
 COLS = [0, 64]          # two reports, 64 columns each
 B5, B7 = 0x40, 0x04     # 64 columns, 4 pages
 
@@ -90,7 +90,7 @@ def main():
     while time.time() - t0 < secs:
         for r in reports:
             try:
-                fd = os.open(DEV, os.O_RDWR)
+                fd = os.open(find_device(), os.O_RDWR)
                 try:
                     os.write(fd, r)
                 finally:

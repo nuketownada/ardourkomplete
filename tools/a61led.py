@@ -20,13 +20,13 @@ import os
 import sys
 import time
 
-DEV = "/dev/hidraw12"
+from a61dev import find_device
 NLEDS = 21
 
 
 def send(values):
     assert len(values) == NLEDS
-    fd = os.open(DEV, os.O_RDWR)
+    fd = os.open(find_device(), os.O_RDWR)
     try:
         return os.write(fd, bytes([0x80]) + bytes(values))
     finally:
