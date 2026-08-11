@@ -312,9 +312,23 @@ accumulator**, 4-bit wrapping encoder in the low nibble of `[27]`.
    `contourdesign` behaves identically with its three ShuttlePRO variants, so
    this is the precedent, not a defect. Ticking any one of the three loads the
    module, which then probes for whatever is actually plugged in.
-2. **Hotplug.** Interactive mode does not survive a replug and the device comes
-   back silently sending CC 14–21 at the user's tracks. The surface currently
-   asserts the mode once at `start()`. Needs re-assertion on reconnect.
+2. ~~**Hotplug.**~~ **DONE, 2026-08-10** (`7882ecf4a2`). Two polls, one live at a
+   time: the 1 ms read poll while the device is present, a 1 s reconnect poll
+   while it is not. Verified by pulling the cable — `device disconnected,
+   watching for its return`, silence while unplugged, then re-assertion about
+   two seconds after the keyboard re-enumerated, with the panel blanking again
+   on its own and decode correct from the first press.
+
+   Ardour's own hotplug cannot do this: `probe_usb_control_protocols()` acts
+   only for an *inactive* protocol on arrival, or an active one that was
+   *auto*-enabled on departure, and is gated on `auto_enable_surfaces`
+   entirely. A surface the user ticked by hand has `cpi->automatic` false, so
+   both edges fall straight through it.
+
+   Residual: the device spends roughly two seconds in MIDI mode between
+   re-enumerating and being taken over, so a knob turned in that window still
+   emits CC. Shortening the reconnect interval would narrow but not close it —
+   some of that time is the kernel and udev, before any node exists to open.
 3. Bind knobs to the selected strip via `Stripable` / `PresentationInfo`;
    buttons to transport, banking, Undo/Redo, Metro, Mute/Solo; 4-D rotation to
    jog. Shift works as a modifier **only** in interactive mode — the firmware
