@@ -220,8 +220,22 @@ accumulator**, 4-bit wrapping encoder in the low nibble of `[27]`.
 
    ```sh
    cd ~/projects/ardour
-   ARDOUR_DEBUG=kompletekontrola ./dev ./gtk2_ardour/ardev
+   ARDOUR_DEBUG_FLAGS=kompletekontrola,controlprotocols ./dev ./gtk2_ardour/ardev
    ```
+
+   **Two traps here cost three wasted runs, so get them right first.** The
+   variable is `ARDOUR_DEBUG_FLAGS`, *not* `ARDOUR_DEBUG` — the bare name is
+   read by nothing in the tree (`gtk2_ardour/main.cc:181`), so it fails
+   silently and every trace stays off. Confirm it landed: `parse_debug_options`
+   prints `Debug flag '<name>' set` to stdout for each flag it matches, so if
+   those lines are absent, nothing downstream means anything.
+
+   And **`PBD::info`/`warning`/`error` do not reach the terminal once the GUI
+   is up.** `UI::receive` (`libs/gtkmm2ext/gtk_ui.cc:579`) captures them into
+   the Log window; only pre-GUI messages hit stderr. Every message this module
+   emits from `open_device()` lands in **Window → Log**. `DEBUG_TRACE` is the
+   exception and goes to stderr. A silent terminal is therefore not evidence of
+   anything — check both.
 
    Then enable **NI Komplete Kontrol A-Series** in Preferences → Control
    Surfaces and confirm every control traces. Two things already check out:
