@@ -106,7 +106,7 @@ its `keypress_buffer` with the ID included, so `payload[n]` == upstream's
 | `[21:25]` | 2 × u16 LE | 0..4095 | pitch bend, mod wheel — read `0` in MIDI mode | **VERIFIED silent** |
 | `[25:27]` | 1 × u16 LE | 0..4095 | third analog, pedal? — reads `0` in MIDI mode | **VERIFIED silent** |
 | `[27]` | 2 × u4 | 0..15 | low nibble = 4-D encoder; high nibble unused | **VERIFIED** |
-| `[28]` | u8 | 0..255 | constant `36` in all captures | unknown |
+| `[28]` | u8 | 0..127 | **octave base note** — MIDI note of the lowest key, `36` at rest | **VERIFIED** |
 
 The device emits input reports **on change only** — no idle traffic. Confirmed
 over a 3 s idle listen and three capture sessions.
@@ -220,8 +220,15 @@ family. Do not plan around them.
 
 ### Knob encoding in interactive mode — endless, not absolute
 
-Each knob is a **wrapping counter, 8 units per detent**, over the declared
-0..999 range. It does *not* clamp. Observed transitions:
+Each knob is a **wrapping counter moving 8 units per step**, over the declared
+0..999 range. It does *not* clamp.
+
+**"Step" is the reporting quantum, not a detent.** The knobs rotate freely with
+no mechanical click; nothing here is something the player can feel. Earlier
+revisions of this document called it a detent, which asserted a physical
+property this hardware does not have.
+
+Observed transitions:
 
 ```
 turning down:   8 -> 0 -> 991 -> 983      (0 - 8 wraps to 991)
@@ -229,13 +236,13 @@ turning up:   999 -> 8                    (999 + 8 wraps to 8)
 ```
 
 Deltas of ±8, ±16 and ±24 appear when reports coalesce during a fast spin, so
-never assume one detent per report. Signed delta, wrap-safe:
+never assume one step per report. Signed delta, wrap-safe:
 
 ```c
 int raw = cur - prev;
 if (raw >  500) raw -= 999;
 if (raw < -500) raw += 999;
-int detents = raw / 8;          /* signed; may be several per report */
+int steps = raw / 8;          /* signed; may be several per report */
 ```
 
 Optional hardening: `raw / 8` truncates toward zero, so any `raw` not on the
@@ -246,14 +253,14 @@ One line makes it robust against a case we have not seen:
 
 ```c
 acc[k] += raw;                  /* per-knob accumulator, persists */
-int detents = acc[k] / 8;
-acc[k] -= detents * 8;          /* keep the remainder for next time */
+int steps = acc[k] / 8;
+acc[k] -= steps * 8;          /* keep the remainder for next time */
 ```
 
 **This is the single most useful consequence of interactive mode.** Endless
 relative encoders have no soft-takeover problem by construction — there is no
 value discontinuity to reconcile when the bound parameter changes. Note it is
-*not* a resolution win: 999 / 8 ≈ 125 detents per revolution-equivalent, which
+*not* a resolution win: 999 / 8 ≈ 125 steps per revolution-equivalent, which
 is essentially the same granularity as the 7-bit CC. The win is **relative
 instead of absolute**, and getting the knobs off the MIDI port entirely.
 
@@ -840,14 +847,50 @@ button bitfield table in particular is complete and should not be re-derived.**
 
 1. Whether LED brightness is genuinely continuous over the declared 0..127
    range, or quantised to a few steps. Cosmetic; affects Phase 4 polish only.
-2. `payload[28]` (constant 36 in every capture) and output report `0xf4`
-   (1 + 31 bytes, purpose unknown). Neither blocks anything. `0xf4` is *not*
-   a text path — `payload[0]` was swept `0x00`–`0x1f` with ASCII behind it and
-   the panel never changed.
+2. Output report `0xf4` (1 + 31 bytes, purpose unknown). Does not block
+   anything. It is *not* a text path — `payload[0]` was swept `0x00`–`0x1f`
+   with ASCII behind it and the panel never changed.
 3. Whether correct-geometry `0xe0` writes also render in MIDI mode. Untested,
    and not worth testing — a surface wants interactive mode anyway.
 4. A font. The framebuffer and its primitives exist; nothing renders glyphs yet.
    That is Phase 4 work, not protocol work.
+
+### `payload[28]` is the octave base note — RESOLVED
+
+Was open question 2. Settled 2026-08-10 by pressing Octave Up once and Octave
+Down once while tracing the whole payload from the Ardour surface:
+
+```
+KKA button Octave Up (bit 20) pressed      KKA payload[28] 36 -> 48
+KKA button Octave Down (bit 19) pressed    KKA payload[28] 48 -> 36
+```
+
+Exactly +12 and back — one octave. The A61's keys are notes 36–96, so `36` is
+the resting value because it *is* the bottom key. This confirms the hypothesis
+that came from `isovector/free-m32`, which names the equivalent M32 field
+`keyshift`, and the field should be read as **the MIDI note number of the
+lowest key**. Update the `[28]` row above accordingly; it is no longer unknown.
+
+Two further results from the same session, both confirming what was already
+recorded rather than changing it:
+
+- **The analog block really is inert over HID.** Full pitch-wheel and mod-wheel
+  sweeps moved nothing in `[21:27]`, tracing every byte. The **VERIFIED silent**
+  status in the payload table holds in interactive mode too, not just MIDI mode.
+- **Keys never reach HID at all.** Playing keys produced no input report
+  whatsoever. The keybed leaves over the device's own MIDI port, which is what
+  lets one surface module serve A25/A49/A61 with no per-model decode.
+
+### Bits 22 / 23 — ours is right, upstream is wrong
+
+`hugovangalen/komplementary-kontrol` names bit 22 "4D Right" and bit 23
+"4D Left". This document has had them the other way round, from capture. That
+disagreement is now settled empirically: pressing the 4-D directions in the
+order Up, Left, Right, Down produced bits 21, 22, 23, 24 in that order.
+
+**Bit 22 is Left and bit 23 is Right.** Upstream's dispatch loop is bounded by
+`TOTAL_HID_BUTTONS == 21`, so it never dispatched either bit and its names for
+them were never exercised.
 
 **Resolved and not to be revisited:** the complete 34-control button map
 including bits 19/20 (Octave Down/Up), 33 (4-D Press) and 34–39 (padding);

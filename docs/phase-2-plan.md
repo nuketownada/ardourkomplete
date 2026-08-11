@@ -267,8 +267,16 @@ accumulator**, 4-bit wrapping encoder in the low nibble of `[27]`.
 
 ## Next — Phase 3
 
-1. **Verify the scaffold on hardware.** The build is done; this is the next
-   action. Needs a display, so it has to be run from Josh's desktop session:
+1. ~~**Verify the scaffold on hardware.**~~ **DONE, 2026-08-10.** Phase 2's exit
+   criterion is met: the module builds by default, loads, appears in
+   Preferences → Control Surfaces, opens the device, takes it over, traces every
+   control, and restores MIDI mode cleanly on exit. Two defects in this module
+   and one in Ardour's vendored hidapi were found and fixed getting there — see
+   the hidapi section above, and `2b4efd7b70` for the seeding bug.
+
+   The hardware session also closed open question 2 and settled the bits 22/23
+   disagreement with upstream; both are written up in `docs/a61-hid-map.md`.
+   Retained below as the procedure, since Phases 3–5 will each want it again:
 
    ```sh
    cd ~/projects/ardour
@@ -322,7 +330,9 @@ font and the touched-knob display.
 
 ## Corrections this research forces on `docs/a61-hid-map.md`
 
-Not yet applied — worth doing before the doc goes anywhere public:
+Items 3 and 4 are **applied and closed** — the hardware session of 2026-08-10
+settled both, and the map now carries the results. Items 1, 2 and 5 are still
+outstanding.
 
 1. **Inverted polarity is no longer unique to us.** The doc says it "is **not**
    predicted by any upstream source." pocket_synth independently documents it
@@ -335,14 +345,15 @@ Not yet applied — worth doing before the doc goes anywhere public:
    `TOTAL_HID_BUTTONS == 21` — the LED count reused as a button bound. So it
    only ever handles bits 1–20, and its silence on the 4-D directions and all
    eight touch sensors is *not* evidence the A25 lacks them. It never looked.
-3. **Bits 22/23 conflict with upstream.** It names 22 "4D Right" and 23
-   "4D Left"; we have them swapped. Since it never dispatched those bits, ours
-   is empirical and theirs is almost certainly an untested guess — but the
-   disagreement should be recorded.
-4. **A free hypothesis for open question 2.** `payload[28]`, constant 36 in
-   every capture: free-m32 names its equivalent M32 field `keyshift`, and our
-   keys are notes 36–96. So it is plausibly the base note / octave-shift value.
-   One press of Octave Up would settle it.
+3. ~~**Bits 22/23 conflict with upstream.**~~ **CLOSED — we were right.**
+   Pressing Up, Left, Right, Down in order produced bits 21, 22, 23, 24 in
+   order, so 22 is Left and 23 is Right. Upstream's names for those bits were
+   never exercised, its loop stopping at 21. Recorded in the map.
+4. ~~**A free hypothesis for open question 2.**~~ **CLOSED — confirmed.**
+   Octave Up moved `payload[28]` 36 → 48 and Octave Down moved it back: exactly
+   one octave. It is the MIDI note number of the lowest key, as free-m32's
+   `keyshift` naming suggested. Recorded in the map; open question 2 now covers
+   only report `0xf4`.
 5. **The A61's family/member sysex reply is still the only one published.**
    Searches for any A25/A49/M32 Universal Identity Reply found nothing, so the
    doc's `0x19`/`0x31` conjecture for A25/A49 remains pure speculation and
