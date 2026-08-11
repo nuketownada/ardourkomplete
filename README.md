@@ -8,11 +8,22 @@ the 128×32 OLED, which appears to be the first open-source solution for this
 device generation on Linux. See [`docs/a61-hid-map.md`](docs/a61-hid-map.md) —
 that document is the deliverable, and the C++ transplants from it.
 
+Phase 2 (the Ardour module skeleton) is scaffolded on branch
+`komplete-kontrol-a` in the sibling Ardour checkout. See
+[`docs/phase-2-plan.md`](docs/phase-2-plan.md).
+
+The module covers the **A25, A49 and A61** from one code path — they are one
+device with three keybeds, and the keybed leaves over the device's own MIDI
+port rather than through the surface. Only the A61 is tested; the other two are
+probed and warn on a report-descriptor mismatch. The M32 is the same protocol
+family but a genuinely different input report, and is out of scope.
+
 ## Layout
 
 ```
 docs/a61-hid-map.md   the protocol map -- inputs, LEDs, display, sysex
-kk-a61-ardour-plan.md the original phase plan
+docs/phase-2-plan.md  the Ardour module: scope, naming, what was built
+kk-a61-ardour-plan.md the original phase plan (superseded)
 tools/                Python probes, all working against real hardware
 flake.nix             dev shell for building Ardour from source
 ```
