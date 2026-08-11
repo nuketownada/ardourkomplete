@@ -87,6 +87,58 @@ this is the established in-tree pattern rather than something to fix.
 
 ---
 
+## The hidapi defect in Ardour's tree
+
+Phase 2's real blocker was not our code. `libs/hidapi/linux/hid.c` in the Ardour
+tree passes `FD_CLOEXEC` to `open()` in three places. `FD_CLOEXEC` is a
+descriptor flag for `fcntl()`, not an `open()` flag, and its value is `1`:
+
+| line | written | actually means |
+|---|---|---|
+| 419 | `O_RDONLY \| FD_CLOEXEC` | `O_WRONLY` — report-descriptor sysfs read |
+| 508 | `O_RDONLY \| FD_CLOEXEC` | `O_WRONLY` — uevent sysfs read |
+| 1066 | `O_RDWR \| FD_CLOEXEC` | access mode `3` — the hidraw node itself |
+
+The first two ask to open root-owned sysfs attributes for writing, which is
+refused for an ordinary user. Line 508 is how `hid_enumerate()` filters by
+vendor and product, so every candidate is skipped and **`hid_open(vid, pid,
+NULL)` cannot match anything unless the process is root.**
+
+Line 1066 is worse because it looks like it works. Access mode 3 is not
+`O_RDWR`: Linux derives the file mode as `(flags + 1) & O_ACCMODE`, so mode 3
+yields a descriptor with neither `FMODE_READ` nor `FMODE_WRITE`. `open()`
+succeeds and `ioctl()` still works — `HIDIOCGRDESC` returned the A61's full
+502-byte report descriptor through such a handle — while every `read()` and
+`write()` fails with `EBADF`. So `hid_open_path()` reports success and returns
+a handle that cannot do I/O, and the failure surfaces far away as an
+unexplained write error.
+
+Measured before and after on signi: `hid_enumerate(0,0)` returned 10 devices
+while `hid_enumerate(vid,0)` returned 0 for all seven vendor ids present; after
+the fix the filtered calls return 1–6 each. The unfiltered count rises to 20,
+because line 419 starts working and hidapi can read usage pages, so it reports
+one entry per top-level collection rather than one per node.
+
+**This is Ardour's bug, not upstream's.** Upstream fixed `O_CLOEXEC` in
+`dbd168183` (2022-08-21), long before Ardour's import. Ardour's vendored file
+matches upstream commit `4578ea24` — the snapshot `8fea1ea42e "Update hidapi"`
+imported, same 1370 lines — in every respect *except* those three lines, which
+were altered to `FD_CLOEXEC` during the import. Restoring `O_CLOEXEC` makes the
+file byte-identical to upstream, so the fix reduces divergence to zero rather
+than adding a local patch.
+
+It is not specific to this branch: **maschine2 is the only other hidapi
+consumer and it calls `hid_open (vid, pid, NULL)` four times**
+(`maschine2.cc:189-205`), so it has been entirely non-functional on Linux for
+non-root users since 2024-09-03. Worth reporting to Ardour.
+
+Our `open_device()` nevertheless enumerates unfiltered and matches the ids
+itself rather than calling `hid_open()`, so the module still works against an
+unpatched external hidapi under `USE_EXTERNAL_LIBS`. The `open()` inside
+`hid_open_path()` has no API-level workaround; the library has to be correct.
+
+---
+
 ## Scope decision — one module for A25 / A49 / A61
 
 **These are one device with three keybeds, and the keybed is not ours.** Knobs,
