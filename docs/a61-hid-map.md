@@ -302,9 +302,43 @@ instead of absolute**, and getting the knobs off the MIDI port entirely.
 byte count exactly (cross-validation that this transfers from the A25).
 
 Upstream's published constants are `LED_OFF 0x00`, `LED_ON 0x7c`,
-`LED_BRIGHT 0x7e`. Note the descriptor declares a full 0..127 range, so
-brightness is plausibly a **continuum** rather than three discrete levels.
-**ASSUMPTION** — the continuum is untested; only 0x00 and 0x7e have been used.
+`LED_BRIGHT 0x7e`.
+
+### Brightness is bit 1, not magnitude — VERIFIED
+
+Earlier revisions of this document guessed from the declared 0..127 range that
+brightness was a **continuum**. It is not. There are exactly three states, and
+the value's magnitude is irrelevant to all of them:
+
+| value | result |
+|---|---|
+| `< 4` | **off**, even with bit 1 set |
+| bit 1 clear | **dim** |
+| bit 1 set | **bright** |
+
+`0x04`, `0x40` and `0x7c` are indistinguishable from one another; so are
+`0x06`, `0x42` and `0x7e`. This is why upstream's `LED_ON` and `LED_BRIGHT`
+are the pair they are — they differ in bit 1 and in nothing else that matters.
+
+Method, which is reusable for anything else on this panel: light all 21 lamps
+in a single report with 21 *different* values (`tools/a61led.py ramp`) and read
+the pattern off in one glance. That is the same trick the firmware's own
+power-on animation uses, and it collapses what would be 21 sequential
+observations into one. Two ramps (`step=6`, then `step=1`) localised the rule;
+ten deliberately scattered values then tested it, and all ten matched the
+prediction — including the awkward pairs `0x7d` dim against `0x7f` bright, and
+`0x02` **dark** despite bit 1 being set.
+
+**Why, as hypothesis rather than measurement:** the layout matches NI's usual
+`(colour << 2) | brightness` LED byte, in which index `0` means "no colour" and
+therefore reads as off, and in which a monochrome button has no hue to select
+and so ignores the index entirely. The panel hardware is certainly capable of
+more — the power-on animation sweeps a wave of roughly sixteen visibly distinct
+levels across the buttons, with the PWM shifts audible to the eye, and a *wave*
+means simultaneous different levels rather than a global dimmer. Report `0x80`
+is simply not the road to that. Whether some other report is a global dimmer is
+unknown and was **not** probed: `0xf8 SET_FEATURE` already STALLs, and
+interface 3 is a DFU runtime descriptor.
 
 ### LED index == button bit index — VERIFIED
 
@@ -856,8 +890,10 @@ the HID and sysex protocols. Note it is **not** the USB PID (`0x1750`).
 Only these remain. **Everything else in this document is VERIFIED — the
 button bitfield table in particular is complete and should not be re-derived.**
 
-1. Whether LED brightness is genuinely continuous over the declared 0..127
-   range, or quantised to a few steps. Cosmetic; affects Phase 4 polish only.
+1. Whether any report is a **global LED dimmer**. Raised by the power-on
+   animation reaching brightnesses that report `0x80` cannot. Deliberately not
+   probed — `0xf8 SET_FEATURE` STALLs and interface 3 is DFU runtime, so this
+   is not a space to sweep. Cosmetic either way.
 2. Output report `0xf4` (1 + 31 bytes, purpose unknown). Does not block
    anything. It is *not* a text path — `payload[0]` was swept `0x00`–`0x1f`
    with ASCII behind it and the panel never changed.
@@ -908,5 +944,6 @@ including bits 19/20 (Octave Down/Up), 33 (4-D Press) and 34–39 (padding);
 touch-sensor bit ordering and direction; 4-D encoder encoding; knobs endless
 in HID under interactive mode; both mode words and their effects; Shift being
 firmware-swallowed in MIDI mode; mode not surviving a power cycle; **LED index
-being identical to button bit index for 0–20**; **the entire display write
+being identical to button bit index for 0–20**; **LED brightness being three
+states selected by bit 1 rather than a continuum**; **the entire display write
 path — geometry, addressing, bit order and polarity**.
