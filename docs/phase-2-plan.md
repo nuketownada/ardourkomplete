@@ -318,7 +318,11 @@ accumulator**, 4-bit wrapping encoder in the low nibble of `[27]`.
 3. Bind knobs to the selected strip via `Stripable` / `PresentationInfo`;
    buttons to transport, banking, Undo/Redo, Metro, Mute/Solo; 4-D rotation to
    jog. Shift works as a modifier **only** in interactive mode — the firmware
-   swallows bit 0 in MIDI mode.
+   swallows bit 0 in MIDI mode. **Do not gate knob values on the touch bit**:
+   a rotation with no touch event was observed during Phase 2 testing, so the
+   sensor and the encoder are independent and touch is a hint for display and
+   pickup, not a precondition for movement. See the touch-sensor note in
+   `docs/a61-hid-map.md`.
 4. **No shadow port, no `AsyncMIDIPort`, no realtime filter.** Phase 1 killed
    that whole branch: with knobs off MIDI, the device's port is already a plain
    music port. See the Phase 1 doc's "Consequences for the build".

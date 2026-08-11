@@ -168,6 +168,17 @@ succession (clean ascending sweep across exactly these eight bits), and one
 touching only the leftmost knob, pausing, then only the rightmost — which
 produced bit 25 then bit 32, fixing the direction.
 
+**Touch is not a precondition for rotation — never gate knob handling on it.**
+One knob-1 rotation was observed with no touch bit set at any point before,
+during or after (`payload[5:7]` moved `0x03df → 0x03d7`, a clean −8, with
+`payload[3]` flat at `0x00`). It did not reproduce on a deliberate re-run, so
+the most likely cause is incidental mechanical contact — the sensor is
+capacitive, and a fingernail or knuckle turns the knob without registering as
+skin. Whatever the cause, the sensor and the encoder are plainly independent,
+so a binding of the tempting form *"apply rotation only while the knob is
+touched"* would silently drop real input. Treat touch as a hint for display
+and pickup behaviour, never as a gate on the value.
+
 > **Consequence for anyone porting upstream's approach:** `komplement.c` packs
 > `keypress_buffer[1..4]` into a 32-bit field — bits 0..31 only. The A61
 > descriptor declares **40** button bits. Two real controls live past that
