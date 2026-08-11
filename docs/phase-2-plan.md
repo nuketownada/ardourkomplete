@@ -16,7 +16,7 @@ clean. It has never been loaded by Ardour or seen the hardware.**
 | | |
 |---|---|
 | `waf configure` | ✅ succeeded, with `--cxx17 --no-phone-home --ptformat --maschine` |
-| `waf` build | ✅ **`'build' finished successfully (15m40.675s)`** at `-j4`. All three sources compiled and `libardour_komplete_kontrol_a.so` linked, with **zero warnings and zero errors attributed to our files** |
+| `waf` build | ✅ **`'build' finished successfully`** — 15m40s throttled to `-j4`, then 9m21s unthrottled on Josh's rerun. All three sources compiled and `libardour_komplete_kontrol_a.so` linked, with **zero warnings and zero errors attributed to our files** |
 | Symbols resolve | ✅ all 198 undefined symbols in the `.so` are satisfied by what Ardour maps at runtime (see below) |
 | Loads in Ardour | ❌ not attempted — needs a display |
 | Hardware trace | ❌ not attempted — needs Josh at the desk |
@@ -45,16 +45,24 @@ committed on either side:
                             ?? libs/surfaces/komplete_kontrol_a/
 ```
 
-**Use a modest `-j` on any rebuild.** A full `-j$(nproc)` rebuild — triggered
-here because `libs/ardour/debug.cc` changed, which forces most of libardour —
-drove the machine's load average past 100 and made the desktop unusable.
-`debug.cc` is the expensive edit in this changeset; expect any future touch of
-it to cost a near-full rebuild. `-j4` cost 15m40s from that state.
+**Build unthrottled.** An earlier draft of this document told you to use `-j4`
+and never `-j$(nproc)`, on the theory that a parallel rebuild had driven the
+machine's load average past 100 and made the desktop unusable. That was a
+misdiagnosis. The stall came from a resource exhaustion bug in the tooling
+running at the time, compounded by a NixOS system rebuild running
+concurrently — not from `waf`. Unthrottled finished in **9m21s** against
+**15m40s** for the same work at `-j4`.
 
 ```sh
 cd ~/projects/ardour
-./dev ./waf -j4        # NOT -j$(nproc)
+./dev ./waf
 ```
+
+What *is* true is that `libs/ardour/debug.cc` and `libs/ardour/ardour/debug.h`
+are the expensive edits in this changeset — adding a surface `DebugBits`
+requires touching both, and that forces a near-full rebuild of libardour. Batch
+anything else that touches core headers alongside that edit. Worth checking
+that a system rebuild is not already running before starting a long build.
 
 ### How the symbol check was done, and why not `dlopen`
 
