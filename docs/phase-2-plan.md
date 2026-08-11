@@ -329,10 +329,42 @@ accumulator**, 4-bit wrapping encoder in the low nibble of `[27]`.
    re-enumerating and being taken over, so a knob turned in that window still
    emits CC. Shortening the reconnect interval would narrow but not close it —
    some of that time is the kernel and udev, before any node exists to open.
-3. Bind knobs to the selected strip via `Stripable` / `PresentationInfo`;
-   buttons to transport, banking, Undo/Redo, Metro, Mute/Solo; 4-D rotation to
-   jog. Shift works as a modifier **only** in interactive mode — the firmware
-   swallows bit 0 in MIDI mode. **Do not gate knob values on the touch bit**:
+3. **Bindings.** Transport is **DONE, 2026-08-10** — Play, Stop, Rec, Loop and
+   Metro, each acting on press, each lamp driven by session state rather than
+   by the press, verified to track changes made from Ardour's own GUI and to
+   survive a replug. Josh: "the whole transport section is now pretty much a
+   mirror of the Ardour UI."
+
+   The threading pattern established there is the one everything else should
+   follow. Session signals are connected with `this` as the trailing
+   `PBD::EventLoop`; because the surface is an `AbstractUI`, that marshals
+   every callback onto its own thread, the same one the read poll runs on.
+   Outbound, `BasicUI` reaches the session through its request queue, and
+   `AccessAction` is connected `gui_context()` on the GUI side. So device I/O,
+   decode and feedback share one thread. The only lock is around `_handle` and
+   the LED state, because `stop()` arrives on Ardour's GUI thread; it is never
+   held across `decode()`, which reaches into Ardour.
+
+   ### LED convention — follow this as bindings land
+
+   | state | meaning |
+   |---|---|
+   | **dark** | this control does nothing |
+   | **dim** | bound, idle |
+   | **bright** | active |
+
+   Dark means unbound, deliberately, so the panel cannot overstate what the
+   surface does; the dark region shrinks as bindings land. Idle is dim rather
+   than dark because **the LED lights the legend** — an unlit button is not a
+   button with its lamp off, it is an unreadable black rectangle in a dim room.
+   Where a control has three states and the panel has two brightnesses, blink
+   the middle one: Rec blinks when armed and is solid when capturing, which is
+   the distinction that matters when the transport is about to roll.
+
+   Still to bind: knobs (pending a decision on what they drive), banking,
+   Undo/Redo, Mute/Solo, and 4-D rotation to jog. Shift works as a modifier
+   **only** in interactive mode — the firmware swallows bit 0 in MIDI mode.
+   **Do not gate knob values on the touch bit**:
    a rotation with no touch event was observed during Phase 2 testing, so the
    sensor and the encoder are independent and touch is a hint for display and
    pickup, not a precondition for movement. See the touch-sensor note in
