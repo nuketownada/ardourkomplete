@@ -361,8 +361,55 @@ accumulator**, 4-bit wrapping encoder in the low nibble of `[27]`.
    the middle one: Rec blinks when armed and is solid when capturing, which is
    the distinction that matters when the transport is about to roll.
 
+   ### The 4-D encoder — DONE for the editor, 2026-08-12
+
+   Twist scrolls the playhead, up/down step between tracks, left/right step
+   between regions, push plays the selection. Built and pushed on
+   `komplete-kontrol-a`; **not yet on hardware.**
+
+   The axes follow the *page*, not the hardware: tracks are stacked in the
+   editor so they are the vertical pair, regions run along the timeline so they
+   are the horizontal one. The mixer wants these swapped — strips run across
+   it. So the bindings live in `editor_4d_move()` / `editor_4d_press()` /
+   `editor_4d_scroll()` rather than inline in the dispatch, which is where that
+   branch goes when a second page lands. How the surface would *learn* which
+   page is showing is still open: nothing travels GUI → surface for it, so it
+   has to be surface-side state driven by a button (Track / Plug-In / Browser
+   are the obvious candidates).
+
+   Twist maps to `Common/playhead-forward-to-grid`, Ardour's own left/right
+   arrows: one grid unit per detent, a tenth of a page when the grid is off.
+   Following the grid means the encoder's feel tracks whatever the user is
+   working at without a setting of our own, and unlike a bare locate it scrolls
+   the canvas to keep the playhead in sight.
+
+   **Ardour had no way to select a region relative to another, and that is why
+   this touches `gtk2_ardour`.** The whole registered-action list was checked.
+   `playhead-to-next-region-start` and its siblings navigate but select
+   nothing, and every region operation resolves its target through
+   `get_regions_from_selection_and_edit_point()` or `..._and_entered()` — the
+   edit point, or *the mouse pointer*. A surface has no mouse, so there was no
+   way to step onto a region and then act on it. `Editor/select-next-region`
+   and `Editor/select-prev-region` were added to close that: ~55 lines in
+   `editor_selection.cc` on the existing `find_next_region()` primitive,
+   copying `cursor_to_region_point()`'s track fallback chain so it reads as
+   in-idiom. Registered unbound; no default key claimed.
+
+   That gap is load-bearing for the push binding, not incidental.
+   `Transport/PlaySelection` reads `get_selection_extents()`, which needs a
+   real region or range selection — with a playhead-only mapping for
+   left/right, pushing the encoder in would be a silent no-op.
+
+   One trap found by inspection: **selecting a track does not clear the region
+   selection.** Up-then-Right would otherwise have stepped along the track just
+   left behind, so the anchor falls back to the playhead when the selected
+   region is not on a selected track.
+
+   No lamps here — bits 21–24 and 33 are past the end of the LED report,
+   matching a panel where the 4-D encoder is unlit.
+
    Still to bind: knobs (pending a decision on what they drive), banking,
-   Undo/Redo, Mute/Solo, and 4-D rotation to jog. Shift works as a modifier
+   Undo/Redo, and Mute/Solo. Shift works as a modifier
    **only** in interactive mode — the firmware swallows bit 0 in MIDI mode.
    **Do not gate knob values on the touch bit**:
    a rotation with no touch event was observed during Phase 2 testing, so the
